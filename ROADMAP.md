@@ -32,6 +32,8 @@ Este documento traza las etapas evolutivas de Folder AI, desde la implementació
 - [x] Componente visual `ToolExecutionCard` con iconos de Material Symbols, estados en tiempo real (En ejecución, Listo, Fallo), badges de subagentes y resultados técnicos expandibles.
 - [x] Sincronización reactiva del explorador de archivos del sandbox tras operaciones de creación, edición o borrado.
 - [x] Configuración exhaustiva de `.gitignore` para omitir artefactos de C, C++, Rust y Lua.
+- [x] Integración de herramienta de depuración en vivo **LeakCanary 2.14** (`debugImplementation`) para análisis de memoria e interfaz de leaks independiente en el teléfono.
+- [x] Flujo de CI/CD automatizado en GitHub Actions (`build-debug-apk.yml`) para compilar APKs Debug descargando dependencias de C++, NDK, CMake, Rust y Lua, con compilación sin caché y generación dinámica de keystore (`scripts/ensure-debug-keystore.sh`).
 
 ---
 

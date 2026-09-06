@@ -23,7 +23,10 @@ Folder AI es una aplicación móvil Android diseñada para aislar carpetas de pr
   - **C++17**: Puente JNI y operaciones de archivos de baja latencia (`nativeEditFilePart`).
   - **Lua 5.4 Original**: Motor embebido en ANSI C puro (sin wrappers externos) para futuras automatizaciones y scripts de análisis.
   - **Rust**: Crate para validación criptográfica de rutas, prevención de *directory traversal* y sandboxing seguro en memoria.
-- **Automatización CI/CD con GitHub Actions**: Workflow para sobrescribir y estandarizar mensajes de commit desde `commit_message.txt`.
+- **Herramienta de Depuración y Perfilado (LeakCanary)**: Detección automática de fugas de memoria en compilaciones debug (`debugImplementation`), permitiendo diagnosticar retenciones de memoria en el propio teléfono sin depender de PC ni Logcat externo.
+- **Automatización CI/CD con GitHub Actions**:
+  - `build-debug-apk.yml`: Compilación automatizada de APK Debug sin caché, con descarga de código, configuración de dependencias de C++, NDK 26.1, CMake, Rust y Lua 5.4, y generación de firma dentro del propio Action mediante el script `scripts/ensure-debug-keystore.sh`.
+  - `override-commit.yml`: Estandarización automática de mensajes de commit controlada desde `commit_message.txt`.
 
 ---
 
@@ -35,6 +38,7 @@ Folder AI es una aplicación móvil Android diseñada para aislar carpetas de pr
 | **Arquitectura** | MVVM + StateFlow + Coroutines | Gestión de estado reactivo y separación de responsabilidades |
 | **Persistencia** | Android Room Database | Historial de auditoría y métricas de clonación |
 | **IA / LLM** | Gemini API (Function Calling + SSE) | Agente con ejecución de herramientas y streaming continuo |
+| **Depuración** | LeakCanary 2.14 (`leakcanary-android`) | Detección en vivo de fugas de memoria con UI independiente en el teléfono |
 | **Procesamiento PDF** | PDFBox Android (`com.tom-roush:pdfbox-android`) | Extracción de texto y soporte para documentos PDF en el sandbox |
 | **Capa Nativa** | C++17 + Lua 5.4 ANSI C | Puente de ejecución, sustitución atómica de texto y runtime Lua |
 | **Seguridad** | Rust Crate (`sandbox_engine`) | Validación estricta de rutas y sanitización de sandbox |

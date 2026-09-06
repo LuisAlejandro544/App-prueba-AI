@@ -1,0 +1,87 @@
+name: Compilar APK Debug (Sin Caché)
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  build-debug-apk:
+    name: Compilar APK Debug y Firmar en Runner
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar todo el código del proyecto
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Configurar Java JDK 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Configurar e instalar Rust Toolchain (Crate sandbox_engine)
+        run: |
+          echo "=== Configurando Rust y Cargo para la capa nativa ==="
+          rustup update stable
+          rustup default stable
+          cargo --version
+          rustc --version
+          
+          echo "=== Verificando compilación del crate de Rust ==="
+          cd app/src/main/rust
+          cargo check --verbose
+          cd ../../..
+
+      - name: Instalar Android NDK 26.1 y CMake 3.22.1
+        run: |
+          echo "=== Instalando dependencias nativas de C++, NDK y CMake ==="
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;26.1.10909125" "cmake;3.22.1"
+          echo "ANDROID_HOME: $ANDROID_HOME"
+          echo "NDK verificado en: $ANDROID_HOME/ndk/26.1.10909125"
+
+      - name: Generar almacén de claves de depuración (Keystore desde cero en el Action)
+        run: |
+          echo "=== Ejecutando script para garantizar debug.keystore local ==="
+          chmod +x scripts/ensure-debug-keystore.sh
+          bash scripts/ensure-debug-keystore.sh --force
+
+      - name: Configurar Gradle (Caché estrictamente deshabilitada)
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+          cache-disabled: true
+
+      - name: Compilar APK Debug completo (Sin Caché)
+        run: |
+          echo "=== Compilando APK Debug con C++17, Lua 5.4, Rust y LeakCanary ==="
+          gradle :app:assembleDebug --no-build-cache --no-daemon --stacktrace
+
+      - name: Validar existencia del APK Debug firmado
+        run: |
+          echo "=== Verificando APK generado ==="
+          ls -lh app/build/outputs/apk/debug/
+          APK_FILE=$(find app/build/outputs/apk/debug/ -name "*.apk" | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            echo "❌ ERROR: No se encontró ningún archivo APK en app/build/outputs/apk/debug/" >&2
+            exit 1
+          fi
+          echo "✓ APK Debug localizado exitosamente: $APK_FILE"
+          echo "✓ Tamaño: $(du -h "$APK_FILE" | cut -f1)"
+
+      - name: Subir APK Debug como Artefacto descargable
+        uses: actions/upload-artifact@v4
+        with:
+          name: folderai-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14

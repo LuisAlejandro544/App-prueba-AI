@@ -8,7 +8,10 @@ Este archivo describe la organización de carpetas y módulos del proyecto, abar
 .
 ├── .github/
 │   └── workflows/
+│       ├── build-debug-apk.yml          # GitHub Action para compilación limpia de APK Debug sin caché y firma en runner
 │       └── override-commit.yml          # GitHub Action para sobreescritura de commits desde commit_message.txt
+├── scripts/
+│   └── ensure-debug-keystore.sh         # Script generador/verificador de debug.keystore desde cero para CI/CD sin bloqueos
 ├── app/
 │   ├── build.gradle.kts                 # Configuración de Gradle, NDK 26.1, CMake, PDFBox y tareas Rust
 │   ├── proguard-rules.pro               # Reglas de ofuscación y preservación JNI
@@ -57,7 +60,7 @@ Este archivo describe la organización de carpetas y módulos del proyecto, abar
 │           └── java/com/example/
 │               └── ExampleRobolectricTest.kt # Pruebas JVM locales con Robolectric
 ├── gradle/                              # Catálogo de versiones
-│   └── libs.versions.toml               # Dependencias centralizadas (Compose, NDK, Room, PDFBox)
+│   └── libs.versions.toml               # Dependencias centralizadas (Compose, NDK, Room, PDFBox, LeakCanary)
 ├── .gitignore                           # Exclusiones de Git para C, C++, Rust, Lua y Android
 ├── commit_message.txt                   # Mensaje de commit controlado por el usuario (en español)
 ├── AI_CONTEXT.md                        # Contexto para modelos LLM y agentes de IA

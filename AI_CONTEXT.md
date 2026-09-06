@@ -54,4 +54,6 @@ La IA dispone de herramientas registradas vía Function Calling en `GeminiSandbo
 - **Sincronización Automática**: Cualquier mutación del sandbox (`create_file`, `edit_file_part`, `delete_file`) desencadena la actualización del estado de archivos en pantalla.
 - **Capa Nativa Real**: El código nativo en `app/src/main/cpp` y `app/src/main/rust` está integrado en el ciclo de compilación de Gradle mediante CMake y NDK 26.1.
 - **Lua 5.4 ANSI C**: El código de Lua es el estándar original en C, sin intermediarios ni wrappers empaquetados.
+- **Herramienta de Depuración con UI Móvil**: Se incorpora LeakCanary 2.14 bajo `debugImplementation` para detectar fugas de memoria con interfaz visual dedicada en el teléfono sin requerir ordenador.
+- **Flujo Automatizado de Compilación Debug**: El flujo `.github/workflows/build-debug-apk.yml` descarga todo el repositorio, prepara el entorno NDK 26.1, CMake, Rust y compila un APK Debug sin caché (`--no-build-cache`), generando su propio almacén de claves mediante `scripts/ensure-debug-keystore.sh` para firmarlo sin esperar secrets ausentes.
 - **Gestión de Commits**: La información del archivo `commit_message.txt` siempre debe redactarse en español y solo se modifica cuando el usuario lo solicita explícitamente. Es consumido por el flujo de GitHub Actions para mantener el historial sincronizado.

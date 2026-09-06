@@ -1,24 +1,8 @@
-feat: Sandbox de aislamiento con IA, streaming SSE, soporte C/C++/Lua/Rust y GitHub Action
+feat: Integración de LeakCanary, GitHub Action para compilación de APK Debug sin caché y generador de keystore
 
-- Implementación del clonador de carpetas en sandbox privado y seguro mediante Storage Access Framework (SAF).
-- Integración de Google Gemini API con streaming real en tiempo real vía Server-Sent Events (SSE) en Jetpack Compose.
-- Soporte para renderizado enriquecido de texto Markdown (*cursiva*, **negrita**, ***ambas*** y código monoespaciado).
-- Preparación del motor nativo en C++17 y Lua 5.4 original en ANSI C puro (sin dependencias ni wrappers).
-- Estructuración del crate de seguridad en Rust (sandbox_engine) con integración en el ciclo de compilación de Gradle.
-- Configuración de CMake 3.22 y Android NDK 26.1 en build.gradle.kts.
-- Configuración avanzada de .gitignore para excluir binarios y artefactos de compilación de C, C++, Rust y Lua.
-- Ajuste de insets de ventana (adjustResize y WindowInsets) para eliminar espacios vacíos con el teclado virtual.
-- Creación de documentación exhaustiva: README.md, ROADMAP.md, STRUCTURE.md, AI_CONTEXT.md y AGENTS.md.
-- Adición de GitHub Action para sobreescritura automática de mensajes de commit mediante commit_message.txt.
-- Implementación de Function Calling interactivo para la IA con 5 herramientas nativas sobre el sandbox:
-  1. list_workspace_files: inspección y listado de jerarquía de archivos, carpetas y subdirectorios.
-  2. read_file: lectura con soporte extendido para archivos .txt, .md, .pdf (vía PDFBox Android) y código fuente.
-  3. create_file: creación controlada de nuevos archivos .txt y .md en el sandbox.
-  4. edit_file_part: modificación precisa de fragmentos de archivos .txt y .md acelerada en C++17 nativo vía JNI (nativeEditFilePart).
-  5. delete_file: eliminación de archivos individuales dentro del entorno aislado.
-- Renderizado interactivo en tiempo real de ToolExecutionCard con indicadores de estado (ejecución, éxito, error), iconos distintivos de Material Symbols y panel expandible de resultados técnicos.
-- Actualización automática reactiva del explorador de archivos del sandbox tras operaciones de creación, edición o borrado.
-- Integración de motor de ejecución de scripts Lua 5.4 nativo en ANSI C (`execute_lua`), permitiendo a la IA escribir y correr scripts directamente en el entorno aislado con sandbox de seguridad (restricción de funciones de SO host) y protección ante bucles infinitos mediante limitador de instrucciones.
-- Soporte para creación y modificación directa de scripts de Lua (.lua) mediante las herramientas nativas `create_file` y `edit_file_part`.
-- Implementación de sistema multi-agente con generación de subagentes especializados (`spawn_subagent`) bajo demanda, permitiendo al Agente Orquestador delegar roles específicos (Arquitecto, Constructor, Detective, Crítico, Optimizador, Escudo, Narrador), objetivos concretos y tareas estructuradas con retorno de reportes técnicos.
-- Actualización de la interfaz en `AiChatSection` con chips rápidos para Lua y Subagentes, renderizado de badges con roles y metas en tiempo real, y soporte completo para visualización de subtareas especializadas.
+- Integración de LeakCanary (v2.14) como herramienta de depuración en tiempo real en la compilación de depuración (debugImplementation) para detección y perfilado de fugas de memoria en el teléfono sin requerir PC.
+- Creación del flujo de GitHub Actions `.github/workflows/build-debug-apk.yml` para compilar automáticamente el APK Debug descargando todo el proyecto, configurando el toolchain de Rust (sandbox_engine), NDK 26.1, CMake 3.22.1 y el runtime nativo de Lua 5.4 / C++17.
+- Compilación con firma generada dentro del propio runner y sin caché (--no-build-cache, cache-disabled y --no-daemon) para asegurar builds limpios e íntegros.
+- Creación del script `scripts/ensure-debug-keystore.sh` que previene bloqueos por falta de keystore en CI y obliga a generarla desde cero con keytool de Java en el mismo entorno del Action.
+- Exportación y publicación automática del APK Debug generado y firmado como artefacto descargable en GitHub Actions.
+- Actualización de la documentación técnica en README.md, ROADMAP.md, STRUCTURE.md y AI_CONTEXT.md reflejando la infraestructura de depuración y CI/CD añadida.
