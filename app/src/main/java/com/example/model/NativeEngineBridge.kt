@@ -28,5 +28,5 @@ object NativeEngineBridge {
     external fun getNativeEngineInfo(): String
     external fun getEngineVersion(): Int
     external fun nativeEditFilePart(filePath: String, targetText: String, replacementText: String): Boolean
-    external fun nativeExecuteLuaScript(script: String): String
+    external fun nativeExecuteLuaScript(workspacePath: String, script: String): String
 }

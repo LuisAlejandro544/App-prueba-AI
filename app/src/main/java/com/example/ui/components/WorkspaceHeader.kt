@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun WorkspaceHeader(
     hasApiKey: Boolean,
+    providerLabel: String = "",
     onApiKeyClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -72,7 +73,7 @@ fun WorkspaceHeader(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Sandbox Aislado Seguro",
+                    text = if (providerLabel.isNotBlank()) "Sandbox • $providerLabel" else "Sandbox Aislado Seguro",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary
                 )

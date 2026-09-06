@@ -9,8 +9,27 @@ Folder AI es un sandbox de aislamiento para Android que permite al usuario selec
 
 ---
 
+## 🤖 Proveedores de Inteligencia Artificial (Multi-Proveedor)
+Folder AI soporta dos proveedores principales de inferencia, configurables desde `ApiKeyDialog.kt` y administrados por `SandboxViewModel.kt`:
+
+1. **OpenRouter AI (`OpenRouterSandboxClient.kt`)**:
+   - Soporte para modelos gratuitos (`:free`) ideales para trabajo sin costos de API:
+     - `poolside/laguna-s-2.1:free`
+     - `nvidia/nemotron-3.5-lightning:free`
+     - `thinkingmachines/inkling:free`
+   - Formato de herramientas: Function Calling estandarizado OpenAI compatible (`type: "function"`).
+   - Enlace directo integrado en UI hacia `https://openrouter.ai/keys`.
+   - Soporte para streaming de texto y orquestación multi-vuelta (*tool execution loop*).
+   - ⚠️ **Disclaimer de Privacidad de Datos**: Aviso visible en UI informando que los proveedores de estos modelos procesan los prompts en sus servidores externos.
+
+2. **Google Gemini (`GeminiSandboxClient.kt`)**:
+   - Integración nativa con Gemini API mediante *Server-Sent Events* (SSE) con modelos Flash y Function Calling directo.
+   - Mecanismo de fallback dinámico entre versiones (`gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-1.5-flash`).
+
+---
+
 ## 🛠️ Herramientas Nativas Disponibles para la IA
-La IA dispone de herramientas registradas vía Function Calling en `GeminiSandboxClient.kt`, ejecutadas en `SandboxManager.kt` y renderizadas en tiempo real en `AiChatSection.kt`:
+La IA dispone de herramientas registradas vía Function Calling tanto en `OpenRouterSandboxClient.kt` como en `GeminiSandboxClient.kt`, ejecutadas en `SandboxManager.kt` y renderizadas en tiempo real en `AiChatSection.kt`:
 
 1. **`list_workspace_files(subpath: String?)`**:
    - Inspecciona la estructura del sandbox, listando archivos, subdirectorios y tamaños.

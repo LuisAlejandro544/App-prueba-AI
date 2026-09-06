@@ -1,8 +1,15 @@
-feat: Integración de LeakCanary, GitHub Action para compilación de APK Debug sin caché y generador de keystore
+feat: Habilitación de scripts Lua 5.4 nativos para automatización de archivos en sandbox y fallback de resiliencia en Gemini
 
-- Integración de LeakCanary (v2.14) como herramienta de depuración en tiempo real en la compilación de depuración (debugImplementation) para detección y perfilado de fugas de memoria en el teléfono sin requerir PC.
-- Creación del flujo de GitHub Actions `.github/workflows/build-debug-apk.yml` para compilar automáticamente el APK Debug descargando todo el proyecto, configurando el toolchain de Rust (sandbox_engine), NDK 26.1, CMake 3.22.1 y el runtime nativo de Lua 5.4 / C++17.
-- Compilación con firma generada dentro del propio runner y sin caché (--no-build-cache, cache-disabled y --no-daemon) para asegurar builds limpios e íntegros.
-- Creación del script `scripts/ensure-debug-keystore.sh` que previene bloqueos por falta de keystore en CI y obliga a generarla desde cero con keytool de Java en el mismo entorno del Action.
-- Exportación y publicación automática del APK Debug generado y firmado como artefacto descargable en GitHub Actions.
-- Actualización de la documentación técnica en README.md, ROADMAP.md, STRUCTURE.md y AI_CONTEXT.md reflejando la infraestructura de depuración y CI/CD añadida.
+- Implementación en C++ (`native-bridge.cpp`) de la biblioteca nativa `sandbox` para Lua 5.4 con operaciones seguras de archivos: `sandbox.write_file`, `sandbox.read_file`, `sandbox.file_exists`, `sandbox.list_files` y `sandbox.delete_file`.
+- Protección contra vulnerabilidades de path traversal mediante normalización léxica de rutas (`resolve_safe_workspace_path`), confinando todas las operaciones estrictamente dentro del workspace del sandbox activo.
+- Ajuste del directorio de trabajo actual (`chdir`) al entorno aislado del sandbox, permitiendo también la manipulación de archivos mediante las funciones estándar de Lua (`io.open`).
+- Redirección y securización de `os.remove` en la máquina virtual Lua hacia el eliminador seguro nativo con verificación de ruta.
+- Actualización de la interfaz JNI (`NativeEngineBridge.kt`, `nativeExecuteLuaScript`) y del gestor Kotlin (`SandboxManager.kt`) para suministrar la ruta del directorio aislado al motor nativo.
+- Refresco automático en tiempo real (`onFilesChanged`) de los archivos del sandbox en la interfaz de usuario tras cada ejecución exitosa de un script Lua.
+- Optimización del System Prompt y de la especificación de la herramienta `execute_lua` para orquestar la creación y manipulación de archivos con Lua de manera autónoma.
+- Implementación de mecanismo de respaldo resiliente (`postGenerateContentWithFallback`) para llamadas a la API de Gemini (conmutando dinámicamente entre gemini-2.5-flash, gemini-2.0-flash y gemini-1.5-flash) previniendo fallos por sobrecarga temporal de servidores ("model is currently overloaded").
+- Integración completa de OpenRouter como proveedor de IA alternativo en `OpenRouterSandboxClient.kt` con soporte de streaming y especificación estándar de Function Calling (OpenAI-compatible).
+- Disponibilidad de 3 modelos gratuitos en la app: `poolside/laguna-s-2.1:free`, `nvidia/nemotron-3.5-lightning:free` y `thinkingmachines/inkling:free`.
+- Incorporación de aviso destacado de privacidad en la interfaz (`ApiKeyDialog.kt`) alertando a los usuarios de no subir información confidencial ni sensible debido al tratamiento de prompts por los proveedores externos de dichos modelos.
+- Inclusión de botón con enlace directo (`https://openrouter.ai/keys`) para obtener la API Key de OpenRouter de forma inmediata desde el dispositivo móvil.
+- Adaptación reactiva de la cabecera (`WorkspaceHeader.kt`) y del `SandboxViewModel.kt` para alternar fluidamente entre modelos de OpenRouter y Google Gemini conservando las claves de forma segura en almacenamiento local.

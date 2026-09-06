@@ -10,12 +10,15 @@
 #include "lauxlib.h"
 #include "lualib.h"
 
+#define LUA_MAX_STACK 128
+
 struct lua_State {
     int top;
     int stack_size;
     void *alloc_ud;
     lua_Alloc alloc_fn;
     char last_error[256];
+    char stack_strings[LUA_MAX_STACK][2048];
 };
 
 static void *default_alloc(void *ud, void *ptr, size_t osize, size_t nsize) {
@@ -73,7 +76,29 @@ void lua_pushinteger(lua_State *L, lua_Integer n) {
 }
 
 const char *lua_pushstring(lua_State *L, const char *s) {
-    if (L != NULL) L->top++;
+    if (L != NULL && L->top + 1 < LUA_MAX_STACK) {
+        L->top++;
+        if (s != NULL) {
+            strncpy(L->stack_strings[L->top], s, sizeof(L->stack_strings[0]) - 1);
+            L->stack_strings[L->top][sizeof(L->stack_strings[0]) - 1] = '\0';
+        } else {
+            L->stack_strings[L->top][0] = '\0';
+        }
+    }
+    return s;
+}
+
+const char *lua_pushlstring(lua_State *L, const char *s, size_t len) {
+    if (L != NULL && L->top + 1 < LUA_MAX_STACK) {
+        L->top++;
+        if (s != NULL) {
+            size_t copy_len = len < (sizeof(L->stack_strings[0]) - 1) ? len : (sizeof(L->stack_strings[0]) - 1);
+            memcpy(L->stack_strings[L->top], s, copy_len);
+            L->stack_strings[L->top][copy_len] = '\0';
+        } else {
+            L->stack_strings[L->top][0] = '\0';
+        }
+    }
     return s;
 }
 
@@ -88,9 +113,46 @@ int lua_toboolean(lua_State *L, int idx) {
 }
 
 const char *lua_tolstring(lua_State *L, int idx, size_t *len) {
-    (void)L; (void)idx;
+    if (L == NULL) {
+        if (len) *len = 0;
+        return "";
+    }
+    int real_idx = idx;
+    if (idx < 0) {
+        real_idx = L->top + idx + 1;
+    }
+    if (real_idx > 0 && real_idx <= L->top && real_idx < LUA_MAX_STACK) {
+        if (len) *len = strlen(L->stack_strings[real_idx]);
+        return L->stack_strings[real_idx];
+    }
     if (len) *len = 0;
     return "";
+}
+
+const char *luaL_checklstring(lua_State *L, int arg, size_t *l) {
+    return lua_tolstring(L, arg, l);
+}
+
+const char *luaL_optlstring(lua_State *L, int arg, const char *def, size_t *l) {
+    const char *s = lua_tolstring(L, arg, l);
+    if ((s == NULL || s[0] == '\0') && def != NULL) {
+        if (l) *l = strlen(def);
+        return def;
+    }
+    return s;
+}
+
+int lua_createtable(lua_State *L, int narr, int nrec) {
+    (void)narr; (void)nrec;
+    if (L != NULL) L->top++;
+    return 1;
+}
+
+void lua_settable(lua_State *L, int idx) {
+    (void)idx;
+    if (L != NULL && L->top >= 2) {
+        L->top -= 2;
+    }
 }
 
 int lua_pcallk(lua_State *L, int nargs, int nresults, int errfunc,

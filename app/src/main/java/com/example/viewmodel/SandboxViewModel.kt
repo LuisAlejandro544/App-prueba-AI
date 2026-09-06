@@ -6,6 +6,8 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.ai.GeminiSandboxClient
+import com.example.ai.OpenRouterModels
+import com.example.ai.OpenRouterSandboxClient
 import com.example.model.ChatMessage
 import com.example.model.CloneStatus
 import com.example.model.ClonedFile
@@ -23,6 +25,7 @@ class SandboxViewModel(application: Application) : AndroidViewModel(application)
     private val prefs = application.getSharedPreferences("sandbox_prefs", Context.MODE_PRIVATE)
     val sandboxManager = SandboxManager(application)
     private val geminiClient = GeminiSandboxClient(sandboxManager)
+    private val openRouterClient = OpenRouterSandboxClient(sandboxManager)
 
     private val _workspace = MutableStateFlow<SandboxWorkspace?>(null)
     val workspace: StateFlow<SandboxWorkspace?> = _workspace.asStateFlow()
@@ -35,6 +38,17 @@ class SandboxViewModel(application: Application) : AndroidViewModel(application)
 
     private val _isAiThinking = MutableStateFlow(false)
     val isAiThinking: StateFlow<Boolean> = _isAiThinking.asStateFlow()
+
+    private val _aiProvider = MutableStateFlow(prefs.getString("ai_provider", "openrouter") ?: "openrouter")
+    val aiProvider: StateFlow<String> = _aiProvider.asStateFlow()
+
+    private val _openRouterApiKey = MutableStateFlow(prefs.getString("openrouter_api_key", "") ?: "")
+    val openRouterApiKey: StateFlow<String> = _openRouterApiKey.asStateFlow()
+
+    private val _openRouterModel = MutableStateFlow(
+        prefs.getString("openrouter_model", OpenRouterModels.DEFAULT_MODEL) ?: OpenRouterModels.DEFAULT_MODEL
+    )
+    val openRouterModel: StateFlow<String> = _openRouterModel.asStateFlow()
 
     private val _customApiKey = MutableStateFlow(prefs.getString("gemini_api_key", "") ?: "")
     val customApiKey: StateFlow<String> = _customApiKey.asStateFlow()
@@ -131,27 +145,54 @@ class SandboxViewModel(application: Application) : AndroidViewModel(application)
             val responseAccumulator = StringBuilder()
 
             try {
-                geminiClient.streamAiWithTools(
-                    userPrompt = trimmed,
-                    customKey = _customApiKey.value,
-                    files = files,
-                    onToolExecutionUpdate = { execution ->
-                        _chatMessages.value = _chatMessages.value.map { msg ->
-                            if (msg.id == aiMessageId) {
-                                val existingIndex = msg.toolExecutions.indexOfFirst { it.callId == execution.callId }
-                                val updatedList = if (existingIndex >= 0) {
-                                    msg.toolExecutions.toMutableList().apply { set(existingIndex, execution) }
-                                } else {
-                                    msg.toolExecutions + execution
-                                }
-                                msg.copy(toolExecutions = updatedList)
-                            } else msg
+                val flow = if (_aiProvider.value == "openrouter") {
+                    openRouterClient.streamAiWithTools(
+                        userPrompt = trimmed,
+                        apiKey = _openRouterApiKey.value,
+                        model = _openRouterModel.value,
+                        files = files,
+                        onToolExecutionUpdate = { execution ->
+                            _chatMessages.value = _chatMessages.value.map { msg ->
+                                if (msg.id == aiMessageId) {
+                                    val existingIndex = msg.toolExecutions.indexOfFirst { it.callId == execution.callId }
+                                    val updatedList = if (existingIndex >= 0) {
+                                        msg.toolExecutions.toMutableList().apply { set(existingIndex, execution) }
+                                    } else {
+                                        msg.toolExecutions + execution
+                                    }
+                                    msg.copy(toolExecutions = updatedList)
+                                } else msg
+                            }
+                        },
+                        onFilesChanged = {
+                            refreshWorkspaceFiles()
                         }
-                    },
-                    onFilesChanged = {
-                        refreshWorkspaceFiles()
-                    }
-                ).collect { chunk ->
+                    )
+                } else {
+                    geminiClient.streamAiWithTools(
+                        userPrompt = trimmed,
+                        customKey = _customApiKey.value,
+                        files = files,
+                        onToolExecutionUpdate = { execution ->
+                            _chatMessages.value = _chatMessages.value.map { msg ->
+                                if (msg.id == aiMessageId) {
+                                    val existingIndex = msg.toolExecutions.indexOfFirst { it.callId == execution.callId }
+                                    val updatedList = if (existingIndex >= 0) {
+                                        msg.toolExecutions.toMutableList().apply { set(existingIndex, execution) }
+                                    } else {
+                                        msg.toolExecutions + execution
+                                    }
+                                    msg.copy(toolExecutions = updatedList)
+                                } else msg
+                            }
+                        },
+                        onFilesChanged = {
+                            refreshWorkspaceFiles()
+                        }
+                    )
+                }
+
+                flow.collect { chunk ->
                     responseAccumulator.append(chunk)
                     val currentText = responseAccumulator.toString()
                     _chatMessages.value = _chatMessages.value.map { msg ->
@@ -174,8 +215,13 @@ class SandboxViewModel(application: Application) : AndroidViewModel(application)
                     }
                 }
             } catch (e: Exception) {
-                val errorText = "⚠️ **Error:** ${e.localizedMessage ?: "Ocurrió un problema al consultar la IA."}\n\n" +
-                        "Si no has configurado tu clave API de Gemini, puedes tocar el icono de llave 🔑 arriba a la derecha."
+                val providerLabel = if (_aiProvider.value == "openrouter") {
+                    "OpenRouter (${OpenRouterModels.getShortLabel(_openRouterModel.value)})"
+                } else {
+                    "Google Gemini"
+                }
+                val errorText = "⚠️ **Error con $providerLabel:** ${e.localizedMessage ?: "Ocurrió un problema al consultar la IA."}\n\n" +
+                        "Toca el icono de llave 🔑 arriba a la derecha para verificar tu API Key de OpenRouter/Gemini o cambiar de modelo."
                 _chatMessages.value = _chatMessages.value.map { msg ->
                     if (msg.id == aiMessageId) msg.copy(text = errorText, isError = true) else msg
                 }
@@ -227,10 +273,27 @@ class SandboxViewModel(application: Application) : AndroidViewModel(application)
         _showApiKeyDialog.value = visible
     }
 
-    fun saveCustomApiKey(key: String) {
-        val trimmed = key.trim()
-        prefs.edit().putString("gemini_api_key", trimmed).apply()
-        _customApiKey.value = trimmed
+    fun saveAiSettings(
+        provider: String,
+        openRouterKey: String,
+        openRouterModel: String,
+        geminiKey: String
+    ) {
+        prefs.edit()
+            .putString("ai_provider", provider)
+            .putString("openrouter_api_key", openRouterKey)
+            .putString("openrouter_model", openRouterModel)
+            .putString("gemini_api_key", geminiKey)
+            .apply()
+
+        _aiProvider.value = provider
+        _openRouterApiKey.value = openRouterKey
+        _openRouterModel.value = openRouterModel
+        _customApiKey.value = geminiKey
         _showApiKeyDialog.value = false
+    }
+
+    fun saveCustomApiKey(key: String) {
+        saveAiSettings(_aiProvider.value, _openRouterApiKey.value, _openRouterModel.value, key)
     }
 }

@@ -31,6 +31,45 @@ class GeminiSandboxClient(
         .build()
 
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
+    private val modelCandidates = listOf("gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash")
+
+    private fun postGenerateContentWithFallback(requestJson: JSONObject, apiKey: String): Pair<JSONObject, String> {
+        var lastException: Exception? = null
+        for (model in modelCandidates) {
+            val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
+            val body = requestJson.toString().toRequestBody(jsonMediaType)
+            val req = Request.Builder().url(url).post(body).build()
+            try {
+                val resp = client.newCall(req).execute()
+                val respBody = resp.body?.string() ?: ""
+                if (resp.isSuccessful) {
+                    return Pair(JSONObject(respBody), model)
+                }
+                val errMsg = try {
+                    val errJson = JSONObject(respBody)
+                    errJson.optJSONObject("error")?.optString("message") ?: "Error HTTP ${resp.code}"
+                } catch (_: Exception) {
+                    "Error HTTP ${resp.code}: $respBody"
+                }
+                val isOverloadedOrUnavailable = resp.code in listOf(404, 429, 500, 503) ||
+                        errMsg.contains("overloaded", ignoreCase = true) ||
+                        errMsg.contains("not found", ignoreCase = true) ||
+                        errMsg.contains("unavailable", ignoreCase = true)
+                if (isOverloadedOrUnavailable) {
+                    lastException = Exception(errMsg)
+                    continue
+                } else {
+                    throw Exception(errMsg)
+                }
+            } catch (e: Exception) {
+                lastException = e
+                if (e.message?.contains("overloaded", ignoreCase = true) == true) {
+                    continue
+                }
+            }
+        }
+        throw lastException ?: Exception("No se pudo obtener respuesta de los modelos de Gemini.")
+    }
 
     private fun resolveApiKey(customKey: String?): String {
         return when {
@@ -157,13 +196,13 @@ class GeminiSandboxClient(
         // 6. execute_lua
         val luaTool = JSONObject().apply {
             put("name", "execute_lua")
-            put("description", "Ejecuta un script o fragmento de código Lua 5.4 directamente en la máquina virtual nativa aislada en C. Útil para cálculos matemáticos, algoritmos, transformaciones de texto, estadísticas y scripts personalizados.")
+            put("description", "Ejecuta un script Lua 5.4 nativo en C con acceso completo y directo al sistema de archivos del sandbox aislado. El directorio de trabajo actual (CWD) es la carpeta del sandbox. Puedes usar io.open('nombre.txt', 'w') para crear/escribir archivos directamente, o la biblioteca sandbox (sandbox.write_file, sandbox.read_file, sandbox.list_files, sandbox.delete_file). Utiliza SIEMPRE print(...) dentro del script para informar claramente de los archivos creados o los resultados obtenidos.")
             val params = JSONObject().apply {
                 put("type", "OBJECT")
                 val props = JSONObject().apply {
                     put("code", JSONObject().apply {
                         put("type", "STRING")
-                        put("description", "Código fuente Lua 5.4 completo a ejecutar. Puede usar print(...) para emitir texto o 'return valor'.")
+                        put("description", "Código fuente Lua 5.4 completo a ejecutar. Para crear archivos usa io.open('archivo.txt', 'w') o sandbox.write_file('archivo.txt', contenido), y llama a print(...) para reportar el resultado.")
                     })
                 }
                 put("properties", props)
@@ -240,12 +279,13 @@ class GeminiSandboxClient(
         3. create_file: Para crear nuevos archivos (.txt, .md o .lua).
         4. edit_file_part: Para modificar partes específicas de un archivo (.txt, .md o .lua) reemplazando texto exacto.
         5. delete_file: Para eliminar cualquier archivo dentro del sandbox.
-        6. execute_lua: Para ejecutar scripts y código en la máquina virtual nativa de Lua 5.4 aislada en C. Puedes escribir tus propios scripts de Lua para procesar datos, hacer cálculos o automatizar tareas.
+        6. execute_lua: Para ejecutar scripts y código en la máquina virtual nativa de Lua 5.4 aislada en C con acceso directo al sistema de archivos del workspace. Puedes usar io.open('archivo.txt', 'w') o la biblioteca sandbox (sandbox.write_file, sandbox.read_file, sandbox.list_files, sandbox.delete_file) para generar, transformar o manipular archivos en el sandbox, usando siempre print(...) para reportar el resumen de los datos generados.
         7. spawn_subagent: Para generar y delegar subtareas complejas a subagentes especializados (Arquitecto, Constructor, Detective, Crítico, Optimizador, Escudo, Narrador), definiendo su rol, objetivo y tarea puntual.
 
         REGLAS DE SEGURIDAD Y OPERACIÓN:
         - Las operaciones ocurren dentro del almacenamiento aislado de la app y no dañan los originales del usuario.
         - Si el usuario te pide crear, leer, modificar o eliminar archivos, o consultar la estructura, invoca directamente la herramienta correspondiente.
+        - Si el usuario te pide expresamente usar comandos o scripts de Lua para generar o automatizar archivos, utiliza execute_lua escribiendo un script completo en Lua 5.4 que cree o abra el archivo (usando io.open o sandbox.write_file('nombre.txt', contenido)), escriba los datos y use print(...) informando con precisión el nombre y contenido del archivo creado.
         - Si una tarea es compleja o multifacética, puedes desplegar un subagente especializado usando spawn_subagent.
         - Si necesitas realizar cálculos o algoritmos rápidos, puedes redactar y ejecutar un script Lua mediante execute_lua.
         - Explica siempre al usuario con amabilidad y en español lo que has realizado mediante las herramientas.
@@ -295,24 +335,12 @@ class GeminiSandboxClient(
                 })
             }
 
-            val requestUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey"
-            val requestBody = requestJson.toString().toRequestBody(jsonMediaType)
-            val request = Request.Builder().url(requestUrl).post(requestBody).build()
-
-            val response = client.newCall(request).execute()
-            val responseBody = response.body?.string() ?: ""
-
-            if (!response.isSuccessful) {
-                val errorMsg = try {
-                    val errJson = JSONObject(responseBody)
-                    errJson.optJSONObject("error")?.optString("message") ?: "Error HTTP ${response.code}"
-                } catch (_: Exception) {
-                    "Error HTTP ${response.code}: $responseBody"
-                }
-                throw Exception(errorMsg)
+            val (respJson, activeModel) = try {
+                postGenerateContentWithFallback(requestJson, apiKey)
+            } catch (e: Exception) {
+                throw e
             }
 
-            val respJson = JSONObject(responseBody)
             val candidates = respJson.optJSONArray("candidates")
             if (candidates == null || candidates.length() == 0) {
                 break
@@ -470,6 +498,8 @@ class GeminiSandboxClient(
                             toolResultText = sandboxManager.toolExecuteLuaScript(code)
                             if (toolResultText.startsWith("Error")) {
                                 isSuccess = false
+                            } else {
+                                onFilesChanged()
                             }
                         }
                         "spawn_subagent" -> {
@@ -525,41 +555,50 @@ class GeminiSandboxClient(
             })
         }
 
-        val sseUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:streamGenerateContent?alt=sse&key=$apiKey"
-        val sseRequestBody = finalPayload.toString().toRequestBody(jsonMediaType)
-        val sseRequest = Request.Builder().url(sseUrl).post(sseRequestBody).build()
+        var sseExecuted = false
+        for (model in modelCandidates) {
+            if (sseExecuted) break
+            val sseUrl = "https://generativelanguage.googleapis.com/v1beta/models/$model:streamGenerateContent?alt=sse&key=$apiKey"
+            val sseRequestBody = finalPayload.toString().toRequestBody(jsonMediaType)
+            val sseRequest = Request.Builder().url(sseUrl).post(sseRequestBody).build()
 
-        val sseResponse = client.newCall(sseRequest).execute()
-        if (sseResponse.isSuccessful) {
-            val source = sseResponse.body?.byteStream()
-            source?.bufferedReader()?.use { reader ->
-                var line: String?
-                while (reader.readLine().also { line = it } != null) {
-                    val currentLine = line?.trim() ?: continue
-                    if (currentLine.startsWith("data:")) {
-                        val jsonData = currentLine.removePrefix("data:").trim()
-                        if (jsonData.isNotEmpty() && jsonData != "[DONE]") {
-                            try {
-                                val chunkJson = JSONObject(jsonData)
-                                val cands = chunkJson.optJSONArray("candidates")
-                                if (cands != null && cands.length() > 0) {
-                                    val cand = cands.getJSONObject(0)
-                                    val cont = cand.optJSONObject("content")
-                                    val prts = cont?.optJSONArray("parts")
-                                    if (prts != null) {
-                                        for (pIdx in 0 until prts.length()) {
-                                            val p = prts.getJSONObject(pIdx)
-                                            val t = p.optString("text", "")
-                                            if (t.isNotEmpty()) {
-                                                emit(t)
+            try {
+                val sseResponse = client.newCall(sseRequest).execute()
+                if (sseResponse.isSuccessful) {
+                    val source = sseResponse.body?.byteStream()
+                    source?.bufferedReader()?.use { reader ->
+                        var line: String?
+                        while (reader.readLine().also { line = it } != null) {
+                            val currentLine = line?.trim() ?: continue
+                            if (currentLine.startsWith("data:")) {
+                                val jsonData = currentLine.removePrefix("data:").trim()
+                                if (jsonData.isNotEmpty() && jsonData != "[DONE]") {
+                                    try {
+                                        val chunkJson = JSONObject(jsonData)
+                                        val cands = chunkJson.optJSONArray("candidates")
+                                        if (cands != null && cands.length() > 0) {
+                                            val cand = cands.getJSONObject(0)
+                                            val cont = cand.optJSONObject("content")
+                                            val prts = cont?.optJSONArray("parts")
+                                            if (prts != null) {
+                                                for (pIdx in 0 until prts.length()) {
+                                                    val p = prts.getJSONObject(pIdx)
+                                                    val t = p.optString("text", "")
+                                                    if (t.isNotEmpty()) {
+                                                        emit(t)
+                                                    }
+                                                }
                                             }
                                         }
-                                    }
+                                    } catch (_: Exception) {}
                                 }
-                            } catch (_: Exception) {}
+                            }
                         }
                     }
+                    sseExecuted = true
                 }
+            } catch (_: Exception) {
+                // Si el streaming con este modelo falla, intentar con el siguiente modelo
             }
         }
     }.flowOn(Dispatchers.IO)
@@ -598,26 +637,14 @@ class GeminiSandboxClient(
             })
         }
 
-        val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey"
-        val req = Request.Builder()
-            .url(url)
-            .post(reqJson.toString().toRequestBody(jsonMediaType))
-            .build()
-
         try {
-            val resp = client.newCall(req).execute()
-            val body = resp.body?.string() ?: ""
-            if (resp.isSuccessful) {
-                val json = JSONObject(body)
-                val candidates = json.optJSONArray("candidates")
-                val first = candidates?.optJSONObject(0)
-                val content = first?.optJSONObject("content")
-                val parts = content?.optJSONArray("parts")
-                parts?.optJSONObject(0)?.optString("text")
-                    ?: "Subagente completó la subtarea sin observaciones adicionales."
-            } else {
-                "Error al ejecutar subagente (${resp.code})"
-            }
+            val (json, _) = postGenerateContentWithFallback(reqJson, apiKey)
+            val candidates = json.optJSONArray("candidates")
+            val first = candidates?.optJSONObject(0)
+            val content = first?.optJSONObject("content")
+            val parts = content?.optJSONArray("parts")
+            parts?.optJSONObject(0)?.optString("text")
+                ?: "Subagente completó la subtarea sin observaciones adicionales."
         } catch (e: Exception) {
             "Fallo de comunicación del subagente: ${e.localizedMessage}"
         }

@@ -62,6 +62,9 @@ fun MainScreen(viewModel: SandboxViewModel) {
     val chatMessages by viewModel.chatMessages.collectAsStateWithLifecycle()
     val isAiThinking by viewModel.isAiThinking.collectAsStateWithLifecycle()
     val customApiKey by viewModel.customApiKey.collectAsStateWithLifecycle()
+    val aiProvider by viewModel.aiProvider.collectAsStateWithLifecycle()
+    val openRouterApiKey by viewModel.openRouterApiKey.collectAsStateWithLifecycle()
+    val openRouterModel by viewModel.openRouterModel.collectAsStateWithLifecycle()
     val showApiKeyDialog by viewModel.showApiKeyDialog.collectAsStateWithLifecycle()
     val selectedFileForPreview by viewModel.selectedFileForPreview.collectAsStateWithLifecycle()
 
@@ -88,10 +91,20 @@ fun MainScreen(viewModel: SandboxViewModel) {
         }
     }
 
-    val hasEffectiveApiKey = customApiKey.isNotBlank() || try {
-        BuildConfig.GEMINI_API_KEY.isNotBlank() && BuildConfig.GEMINI_API_KEY != "MY_GEMINI_API_KEY"
-    } catch (_: Throwable) {
-        false
+    val hasEffectiveApiKey = if (aiProvider == "openrouter") {
+        openRouterApiKey.isNotBlank()
+    } else {
+        customApiKey.isNotBlank() || try {
+            BuildConfig.GEMINI_API_KEY.isNotBlank() && BuildConfig.GEMINI_API_KEY != "MY_GEMINI_API_KEY"
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    val providerLabel = if (aiProvider == "openrouter") {
+        com.example.ai.OpenRouterModels.getShortLabel(openRouterModel)
+    } else {
+        "Gemini"
     }
 
     Scaffold(
@@ -108,6 +121,7 @@ fun MainScreen(viewModel: SandboxViewModel) {
             // Cabecera con estado de aislamiento y botón de API Key
             WorkspaceHeader(
                 hasApiKey = hasEffectiveApiKey,
+                providerLabel = providerLabel,
                 onApiKeyClick = { viewModel.setApiKeyDialogVisible(true) }
             )
 
@@ -133,12 +147,17 @@ fun MainScreen(viewModel: SandboxViewModel) {
             )
         }
 
-        // Diálogo para ingresar o editar la clave API de Gemini
+        // Diálogo para configurar proveedor de IA, modelos OpenRouter y claves
         if (showApiKeyDialog) {
             ApiKeyDialog(
-                currentKey = customApiKey,
+                currentProvider = aiProvider,
+                currentOpenRouterKey = openRouterApiKey,
+                currentOpenRouterModel = openRouterModel,
+                currentGeminiKey = customApiKey,
                 onDismiss = { viewModel.setApiKeyDialogVisible(false) },
-                onSave = { newKey -> viewModel.saveCustomApiKey(newKey) }
+                onSave = { provider, orKey, orModel, geminiKey ->
+                    viewModel.saveAiSettings(provider, orKey, orModel, geminiKey)
+                }
             )
         }
 

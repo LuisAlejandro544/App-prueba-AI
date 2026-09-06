@@ -362,7 +362,7 @@ class SandboxManager(private val context: Context) {
         }
         return try {
             if (NativeEngineBridge.isLoaded()) {
-                NativeEngineBridge.nativeExecuteLuaScript(code)
+                NativeEngineBridge.nativeExecuteLuaScript(workspaceDir.absolutePath, code)
             } else {
                 "Error: El motor nativo de Lua 5.4 no está enlazado en este dispositivo."
             }

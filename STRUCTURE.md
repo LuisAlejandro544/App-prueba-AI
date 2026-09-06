@@ -32,8 +32,9 @@ Este archivo describe la organización de carpetas y módulos del proyecto, abar
 │       │   │       └── lib.rs           # Código del motor de seguridad y prevención de traversal
 │       │   ├── java/com/example/        # Código fuente Kotlin (UI y Lógica)
 │       │   │   ├── MainActivity.kt      # Actividad principal con Scaffold y manejo de insets
-│       │   │   ├── ai/                  # Cliente de IA, Function Calling y streaming
-│       │   │   │   └── GeminiSandboxClient.kt # Integración de herramientas IA (archivos, execute_lua, spawn_subagent) y streaming SSE
+│       │   │   ├── ai/                  # Clientes de IA, Function Calling y streaming
+│       │   │   │   ├── GeminiSandboxClient.kt     # Integración Gemini con Function Calling nativo y streaming SSE
+│       │   │   │   └── OpenRouterSandboxClient.kt # Integración OpenRouter con modelos gratuitos (:free) y Function Calling OpenAI
 │       │   │   ├── model/               # Modelos de datos
 │       │   │   │   ├── SandboxModels.kt    # Workspace, ChatMessage, ToolExecution, SubagentInfo, ToolIconType y ToolStatus
 │       │   │   │   └── NativeEngineBridge.kt # Interfaz JNI externa para C++, Lua (nativeExecuteLuaScript) y nativeEditFilePart
@@ -42,7 +43,7 @@ Este archivo describe la organización de carpetas y módulos del proyecto, abar
 │       │   │   ├── ui/
 │       │   │   │   ├── components/      # Componentes modulares Jetpack Compose
 │       │   │   │   │   ├── AiChatSection.kt       # Chat, chips rápidos (archivos, Lua, subagentes) y tarjetas ToolExecutionCard
-│       │   │   │   │   ├── ApiKeyDialog.kt        # Diálogo para ingresar clave de API
+│       │   │   │   │   ├── ApiKeyDialog.kt        # Diálogo multi-proveedor (OpenRouter / Gemini) con disclaimer y enlace a keys
 │       │   │   │   │   ├── FileViewerDialog.kt    # Visor de código monoespaciado
 │       │   │   │   │   ├── MarkdownText.kt        # Soporte para *cursiva* y **negrita**
 │       │   │   │   │   ├── WorkspaceFolderCard.kt # Tarjeta de estado y conteo de archivos en el sandbox

@@ -28,6 +28,8 @@ int (luaL_argerror) (lua_State *L, int arg, const char *extramsg);
 const char *(luaL_checklstring) (lua_State *L, int arg, size_t *l);
 const char *(luaL_optlstring) (lua_State *L, int arg,
                                           const char *def, size_t *l);
+#define luaL_checkstring(L,n)	(luaL_checklstring(L, (n), NULL))
+#define luaL_optstring(L,n,d)	(luaL_optlstring(L, (n), (d), NULL))
 lua_Number (luaL_checknumber) (lua_State *L, int arg);
 lua_Integer (luaL_checkinteger) (lua_State *L, int arg);
 
