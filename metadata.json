@@ -1,0 +1,6 @@
+{
+  "name": "Folder AI Sandbox",
+  "description": "Aísla y clona carpetas en un sandbox local seguro para interactuar con IA sin riesgo de modificar o dañar los archivos originales.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
